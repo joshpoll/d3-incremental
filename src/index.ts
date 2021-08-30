@@ -70,7 +70,7 @@ type ChangeSetCallback<T> = {
   exit: (dataDom: DataDOM<T>) => void,
 };
 
-const join = <T>(dataStream: Subject<T[]>, changeSetCallback: ChangeSetCallback<T>): Observable<[T[], DataDOM<T>[]]> => {
+const render = <T>(dataStream: Subject<T[]>, changeSetCallback: ChangeSetCallback<T>): Observable<[T[], DataDOM<T>[]]> => {
   // https://www.learnrxjs.io/learn-rxjs/recipes/gameloop
   // renderStream works like gameState
   let renderStream = new BehaviorSubject<DataDOM<T>[]>([]);
@@ -100,7 +100,7 @@ const join = <T>(dataStream: Subject<T[]>, changeSetCallback: ChangeSetCallback<
 
 let dataStream = new Subject<Letter[]>();
 
-let dataDOMStream = join(dataStream,
+let dataDOMStream = render(dataStream,
   {
     enter: (x) => body.appendChild(document.createTextNode(x.name)),
     update: ({dom}) => dom,
