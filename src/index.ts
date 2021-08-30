@@ -1,5 +1,5 @@
-import { BehaviorSubject, ReplaySubject, Subject } from "rxjs";
-import { map, tap, withLatestFrom } from "rxjs/operators";
+import { BehaviorSubject, Subject } from "rxjs";
+import { tap, withLatestFrom } from "rxjs/operators";
 
 console.log("Hello World!");
 
@@ -32,8 +32,48 @@ type DataDOM<T> = {
   dom: Node,
 }
 
-const diff = <T>(prev: DataDOM<T>[], curr: T[]) => {
+type ChangeSet<T> = {
+  enter: T[],
+  update: DataDOM<T>[],
+  exit: DataDOM<T>[],
+}
 
+const diff = <T>(prev: DataDOM<T>[], curr: T[]): ChangeSet<T> => {
+  // https://mistakes.io/#4679425 from https://tmcw.github.io/presentations/dcjq/
+  let prevArr = prev.map(({ data }) => data);
+
+  // there now, but wasn't prev
+  let enter = curr.filter(function(n) {
+    return prevArr.indexOf(n) === -1;
+  });
+
+  // there prev, and is now
+  let update = prev.filter(function(n) {
+    return curr.indexOf(n.data) !== -1;
+  });
+
+  // there prev, but isn't now
+  let exit = prev.filter(function(n) {
+    return curr.indexOf(n.data) === -1;
+  });
+
+  return {
+    enter,
+    update,
+    exit
+  };
+}
+
+type ChangeSetCallback<T> = {
+  enter: (data: T) => Node,
+  update: (dataDom: DataDOM<T>) => Node,
+  exit: (dataDom: DataDOM<T>) => void,
+};
+
+let changeSetCallback: ChangeSetCallback<Letter> = {
+  enter: (x) => body.appendChild(document.createTextNode(x.name)),
+  update: ({dom}) => dom,
+  exit: ({dom}) => body.removeChild(dom),
 }
 
 // https://www.learnrxjs.io/learn-rxjs/recipes/gameloop
@@ -45,20 +85,27 @@ let dataStream = new Subject<Letter[]>();
 let dataDOMStream = dataStream.pipe(
   withLatestFrom(renderStream), // drag in renderStream as an argument, but only refire when dataStream changes
   tap(([data, render]) => {
+    let changeSet = diff(render, data);
+
+    let enter = changeSet.enter.map((x) => ({
+      data: x,
+      dom: changeSetCallback.enter(x)
+    }));
+
+    let update = changeSet.update.map((x) => ({
+      data: x.data,
+      dom: changeSetCallback.update(x)
+    }));
+
+    /* let exit =  */changeSet.exit.map((x) => changeSetCallback.exit(x));
+
     console.log("from stream", data, render);
-    renderStream.next([{
-      data: {name: "A", frequency: .08167},
-      dom: null,
-    }]);
+    renderStream.next([...enter, ...update]);
   }),
-  // map((xs) => xs.map((x): DataDOM<Letter> => ({
-  //   data: x,
-  //   dom: body.appendChild(document.createTextNode(x.name)),
-  // })))
 );
 
 dataStream.subscribe((x) => console.log(x));
 dataDOMStream.subscribe((x) => console.log("dataDOM", x));
 
 dataStream.next(letters);
-dataStream.next(vowels);
+setTimeout(() => dataStream.next(vowels), 1000);
