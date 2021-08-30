@@ -1,0 +1,16 @@
+{
+  "name": "d3-incremental",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "parcel": "^2.0.0-rc.0",
+    "parcel-bundler": "^1.12.5"
+  },
+  "scripts": {
+    "start": "parcel src/index.html & tsc --watch --noEmit"
+  },
+  "dependencies": {
+    "rxjs": "^7.3.0"
+  }
+}
