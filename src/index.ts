@@ -1,4 +1,4 @@
-import { BehaviorSubject, Subject } from "rxjs";
+import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { tap, withLatestFrom } from "rxjs/operators";
 
 console.log("Hello World!");
@@ -70,38 +70,42 @@ type ChangeSetCallback<T> = {
   exit: (dataDom: DataDOM<T>) => void,
 };
 
-let changeSetCallback: ChangeSetCallback<Letter> = {
-  enter: (x) => body.appendChild(document.createTextNode(x.name)),
-  update: ({dom}) => dom,
-  exit: ({dom}) => body.removeChild(dom),
+const join = <T>(dataStream: Subject<T[]>, changeSetCallback: ChangeSetCallback<T>): Observable<[T[], DataDOM<T>[]]> => {
+  // https://www.learnrxjs.io/learn-rxjs/recipes/gameloop
+  // renderStream works like gameState
+  let renderStream = new BehaviorSubject<DataDOM<T>[]>([]);
+
+  return dataStream.pipe(
+    withLatestFrom(renderStream), // drag in renderStream as an argument, but only refire when dataStream changes
+    tap(([data, render]) => {
+      let changeSet = diff(render, data);
+  
+      let enter = changeSet.enter.map((x) => ({
+        data: x,
+        dom: changeSetCallback.enter(x)
+      }));
+  
+      let update = changeSet.update.map((x) => ({
+        data: x.data,
+        dom: changeSetCallback.update(x)
+      }));
+  
+      /* let exit =  */changeSet.exit.map((x) => changeSetCallback.exit(x));
+  
+      console.log("from stream", data, render);
+      renderStream.next([...enter, ...update]);
+    }),
+  );
 }
 
-// https://www.learnrxjs.io/learn-rxjs/recipes/gameloop
-// renderStream works like gameState
-// TODO: specify type
-let renderStream = new BehaviorSubject<DataDOM<Letter>[]>([]);
 let dataStream = new Subject<Letter[]>();
 
-let dataDOMStream = dataStream.pipe(
-  withLatestFrom(renderStream), // drag in renderStream as an argument, but only refire when dataStream changes
-  tap(([data, render]) => {
-    let changeSet = diff(render, data);
-
-    let enter = changeSet.enter.map((x) => ({
-      data: x,
-      dom: changeSetCallback.enter(x)
-    }));
-
-    let update = changeSet.update.map((x) => ({
-      data: x.data,
-      dom: changeSetCallback.update(x)
-    }));
-
-    /* let exit =  */changeSet.exit.map((x) => changeSetCallback.exit(x));
-
-    console.log("from stream", data, render);
-    renderStream.next([...enter, ...update]);
-  }),
+let dataDOMStream = join(dataStream,
+  {
+    enter: (x) => body.appendChild(document.createTextNode(x.name)),
+    update: ({dom}) => dom,
+    exit: ({dom}) => body.removeChild(dom),
+  }
 );
 
 dataStream.subscribe((x) => console.log(x));
