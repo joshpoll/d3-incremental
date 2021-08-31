@@ -62,3 +62,4 @@ dataStream.next(range(5).map(() => makeFruit("apple")));
 
 /* TODO: this doesn't diff properly, because the indexOf calculation is too weak I think */
 setTimeout(() => dataStream.next(range(4).map(() => makeFruit("apple"))), 1000);
+setTimeout(() => dataStream.next(range(6).map(() => makeFruit("apple"))), 2000);
