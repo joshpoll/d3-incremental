@@ -1,10 +1,10 @@
-import { BehaviorSubject, Observable, Subject } from "rxjs";
-import { tap, withLatestFrom } from "rxjs/operators";
+import { CollectionSubject } from "./d3-incremental";
 
-console.log("Hello World!");
+// recreating (non-animated version of) this tutorial https://www.youtube.com/watch?v=IyIAR65G-GQ
 
-console.log(document.querySelector("body"));
-const body = document.querySelector("body");
+const svg = document.querySelector("svg");
+const width = +svg.getAttribute("width");
+const height = +svg.getAttribute("height");
 
 type Letter = {
   name: string,
@@ -27,89 +27,38 @@ let vowels: Letter[] = [
   {name: "E", frequency: .12702}, // TODO: putting this in the wrong place so I can key by index for now
 ];
 
-type DataDOM<T> = {
-  data: T,
-  dom: Node,
-}
+let dataStream = new CollectionSubject<Fruit>();
 
-type ChangeSet<T> = {
-  enter: T[],
-  update: DataDOM<T>[],
-  exit: DataDOM<T>[],
-}
-
-const diff = <T>(prev: DataDOM<T>[], curr: T[]): ChangeSet<T> => {
-  // https://mistakes.io/#4679425 from https://tmcw.github.io/presentations/dcjq/
-  let prevArr = prev.map(({ data }) => data);
-
-  // there now, but wasn't prev
-  let enter = curr.filter(function(n) {
-    return prevArr.indexOf(n) === -1;
-  });
-
-  // there prev, and is now
-  let update = prev.filter(function(n) {
-    return curr.indexOf(n.data) !== -1;
-  });
-
-  // there prev, but isn't now
-  let exit = prev.filter(function(n) {
-    return curr.indexOf(n.data) === -1;
-  });
-
-  return {
-    enter,
-    update,
-    exit
-  };
-}
-
-type ChangeSetCallback<T> = {
-  enter: (data: T) => Node,
-  update: (dataDom: DataDOM<T>) => Node,
-  exit: (dataDom: DataDOM<T>) => void,
-};
-
-const render = <T>(dataStream: Subject<T[]>, changeSetCallback: ChangeSetCallback<T>): Observable<[T[], DataDOM<T>[]]> => {
-  // https://www.learnrxjs.io/learn-rxjs/recipes/gameloop
-  // renderStream works like gameState
-  let renderStream = new BehaviorSubject<DataDOM<T>[]>([]);
-
-  return dataStream.pipe(
-    withLatestFrom(renderStream), // drag in renderStream as an argument, but only refire when dataStream changes
-    tap(([data, render]) => {
-      let changeSet = diff(render, data);
-  
-      let enter = changeSet.enter.map((x) => ({
-        data: x,
-        dom: changeSetCallback.enter(x)
-      }));
-  
-      let update = changeSet.update.map((x) => ({
-        data: x.data,
-        dom: changeSetCallback.update(x)
-      }));
-  
-      /* let exit =  */changeSet.exit.map((x) => changeSetCallback.exit(x));
-  
-      console.log("from stream", data, render);
-      renderStream.next([...enter, ...update]);
-    }),
-  );
-}
-
-let dataStream = new Subject<Letter[]>();
-
-let dataDOMStream = render(dataStream,
-  {
-    enter: (x) => body.appendChild(document.createTextNode(x.name)),
-    update: ({dom}) => dom,
-    exit: ({dom}) => body.removeChild(dom),
-  }
-);
+/* TODO: convert to .pipe(render()) */
+let dataDOMStream = dataStream.render({
+  enter: (_x, i) => {
+    const svgns = "http://www.w3.org/2000/svg";
+    const circle = document.createElementNS(svgns, "circle");
+    circle.setAttributeNS(null, "cx", `${i * 120 + 60}`);
+    circle.setAttributeNS(null, "cy", `${height / 2}`);
+    circle.setAttributeNS(null, "fill", "#c11d1d");
+    circle.setAttributeNS(null, "r", "50");
+    return svg.appendChild(circle);
+  },
+  update: ({dom}) => dom,
+  exit: ({dom}) => svg.removeChild(dom),
+});
 
 dataStream.subscribe((x) => console.log(x));
 dataDOMStream.subscribe((x) => console.log("dataDOM", x));
 
-dataStream.next(letters);
-setTimeout(() => dataStream.next(vowels), 1000);
+// dataStream.next(letters);
+// setTimeout(() => dataStream.next(vowels), 1000);
+
+type Fruit = {
+  type: string,
+}
+
+const makeFruit = (type: string): Fruit => ({ type });
+
+const range = (n: number) => Array.from(Array(n).keys());
+
+dataStream.next(range(5).map(() => makeFruit("apple")));
+
+/* TODO: this doesn't diff properly, because the indexOf calculation is too weak I think */
+setTimeout(() => dataStream.next(range(4).map(() => makeFruit("apple"))), 1000);
